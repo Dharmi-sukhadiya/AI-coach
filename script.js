@@ -1,0 +1,826 @@
+/**
+ * AI Resume + Interview Coach - Main Script
+ * Handles custom animations, typing effects, interactive modes, and user actions.
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Navigation & Scroll to main features list
+  const ctaBtn = document.getElementById('cta-btn');
+  const featuresSection = document.getElementById('features-section');
+
+  if (ctaBtn && featuresSection) {
+    ctaBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      featuresSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      
+      // Highlight the features list slightly
+      featuresSection.classList.add('ring-2', 'ring-purple-500/20');
+      setTimeout(() => {
+        featuresSection.classList.remove('ring-2', 'ring-purple-500/20');
+      }, 1500);
+    });
+  }
+
+  // Feature list grid cards (Elite Capabilities section redirect targets)
+  const scrollFeatureCards = document.querySelectorAll('[data-scroll-target]');
+  scrollFeatureCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const targetId = card.getAttribute('data-scroll-target');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // Add highlight transition effect to emphasize the target section loaded
+        targetEl.classList.add('ring-2', 'ring-purple-500/20', 'duration-500');
+        setTimeout(() => {
+          targetEl.classList.remove('ring-2', 'ring-purple-500/20');
+        }, 1500);
+      }
+    });
+  });
+
+  // --- ATS Resume Analyzer Logic ---
+  const analyzerTextarea = document.getElementById('analyzer-textarea');
+  const analyzeBtn = document.getElementById('analyze-resume-btn');
+  const idleState = document.getElementById('analyzer-idle-state');
+  const analyzerLoader = document.getElementById('analyzer-loader');
+  const loaderStepText = document.getElementById('analyzer-loader-step');
+  const resultCard = document.getElementById('analyzer-result-card');
+
+  const resultAtsScore = document.getElementById('result-ats-score');
+  const resultMatchStatus = document.getElementById('result-match-status');
+  const resultMissingSkills = document.getElementById('result-missing-skills');
+  const resultImprovementsList = document.getElementById('result-improvements-list');
+  const resultFormattingList = document.getElementById('result-formatting-list');
+
+  // Realistic raw resume template to prefill
+  const SAMPLE_CV = `ALEX MERCER - SOFTWARE DEVELOPER
+Email: alex@example.com | GitHub: github.com/alex | Phone: (555) 019-2831
+
+Summary:
+Developer with experience building web things, looking for a cool company to join. Hard worker, team builder, fast learner.
+
+Work Experience:
+Software Engineer at Acme Corp (2024 - Present)
+- Worked on the frontend using HTML, CSS and some JavaScript.
+- Helped make the page load faster by deleting some heavy images.
+- Discussed specifications with other developers.
+- Fixed some client reported bugs.
+
+Junior Developer at WebFlow Solutions (2022 - 2024)
+- Built interactive parts of websites.
+- Talked to customers about specifications.
+- Monitored backup servers.
+
+Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
+
+  if (analyzerTextarea) {
+    analyzerTextarea.value = SAMPLE_CV;
+  }
+
+  // Pre-configured custom response data depending on the keywords
+  const ANALYSIS_PATTERNS = {
+    software: {
+      score: 74,
+      status: "✓ FOUNDATIONAL COMPLIANCE",
+      statusClass: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      skills: ["Docker / Kubernetes", "CI/CD Pipelines", "System Design Matrices", "Unit Testing (Jest/Mocha)", "Redis Cache", "TypeScript Integration"],
+      improvements: [
+        "✦ <strong>Integrate hard metrics:</strong> Rewrite standard bullets to include quantitative outputs (e.g. 'Improved speed by 35% using lazy-loading setup').",
+        "✦ <strong>Focus on technologies:</strong> Replace generic statements like 'Worked on the frontend' with technical stack specifics ('Architected modular React/Vite frontends').",
+        "✦ <strong>Leverage strong action verbs:</strong> Trade simple verbs like 'Worked on', 'Helped make' for advanced ones like 'Spearheaded', 'Optimized', 'Refactored'."
+      ],
+      formatting: [
+        "✦ <strong>Summary formatting:</strong> Swap soft soft-skills summary descriptions ('team player, fast learner') with precise domain specialization summaries.",
+        "✦ <strong>Section alignment check:</strong> Ensure work experience dates correspond strictly to clean corporate formats like 'MM/YYYY' for standard scanning passes.",
+        "✦ <strong>Avoid vertical dividers:</strong> Your pipeline links utilize thin pipes ('|'); some legacy parsing trees can break parsing on custom text columns."
+      ]
+    },
+    default: {
+      score: 68,
+      status: "⚠️ REJECTION WARNING",
+      statusClass: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+      skills: ["KPI Tracking Metrics", "Cross-Functional Synergy", "Agile Roadmap Delivery", "Cloud Ingress Configurations", "System Fault Isolation"],
+      improvements: [
+        "✦ <strong>Enhance Impact:</strong> Highlight individual scope of ownership rather than passive execution pipelines.",
+        "✦ <strong>Incorporate modern tools:</strong> Add industry-accepted standard toolsets related to data analytics and structural tracking.",
+        "✦ <strong>Increase metric frequency:</strong> Ensure every single section bullet boasts at least one percentage, revenue, or hour tracking multiplier."
+      ],
+      formatting: [
+        "✦ <strong>Contact coordinates:</strong> Position email, github, and physical location coordinates on separate crisp bullet rows.",
+        "✦ <strong>Simplify hierarchy:</strong> Stay away from custom tabular indentations or graphic icons that confuse ATS string-parsing tables.",
+        "✦ <strong>Standardize header titles:</strong> Use standard tags like 'Professional Experience' instead of 'Work Experience'."
+      ]
+    }
+  };
+
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', () => {
+      const textVal = analyzerTextarea.value.trim();
+      const titleVal = document.getElementById('analyzer-job-title').value.trim();
+
+      if (!textVal) {
+        alert("Please paste your raw resume text first to parse.");
+        return;
+      }
+
+      // Hide idle / result state and show loader
+      idleState.classList.add('hidden');
+      resultCard.classList.add('hidden');
+      analyzerLoader.classList.remove('hidden');
+
+      // Smooth step-by-step telemetry simulator
+      const steps = [
+        "Parsing Document Layout Hierarchy...",
+        "Evaluating Keyword Matches Against Global ATS Indices...",
+        "Correlating Target Domain & Industry Context...",
+        "Generating Actionable Formatting & Metric Guidelines..."
+      ];
+
+      let currentStepIdx = 0;
+      loaderStepText.textContent = steps[0];
+
+      const stepInterval = setInterval(() => {
+        currentStepIdx++;
+        if (currentStepIdx < steps.length) {
+          loaderStepText.textContent = steps[currentStepIdx];
+        } else {
+          clearInterval(stepInterval);
+          renderAnalysisResults(titleVal);
+        }
+      }, 500);
+    });
+  }
+
+  function renderAnalysisResults(targetTitle) {
+    analyzerLoader.classList.add('hidden');
+    resultCard.classList.remove('hidden');
+    resultCard.classList.add('animate-fadeIn');
+
+    // Choose key template based on user target selection
+    const normalizedTitle = targetTitle.toLowerCase();
+    const cleanPattern = (normalizedTitle.includes('software') || normalizedTitle.includes('engineer') || normalizedTitle.includes('developer'))
+      ? ANALYSIS_PATTERNS.software
+      : ANALYSIS_PATTERNS.default;
+
+    // Trigger score ticking count animation for visual satisfaction
+    let startingScore = 0;
+    const finalScore = cleanPattern.score;
+    resultAtsScore.textContent = '0';
+
+    const countInterval = setInterval(() => {
+      startingScore += 2;
+      if (startingScore >= finalScore) {
+        resultAtsScore.textContent = finalScore;
+        clearInterval(countInterval);
+      } else {
+        resultAtsScore.textContent = startingScore;
+      }
+    }, 20);
+
+    // Populate Status Indicators
+    resultMatchStatus.textContent = cleanPattern.status;
+    resultMatchStatus.className = `inline-flex px-2.5 py-1 rounded-md text-xs font-mono font-semibold ${cleanPattern.statusClass} border mb-2`;
+
+    // Populate Missing Skills pills
+    resultMissingSkills.innerHTML = '';
+    cleanPattern.skills.forEach(skill => {
+      const pill = document.createElement('span');
+      pill.className = 'px-3 py-1 bg-white/[0.04] text-xs font-semibold text-gray-200 border border-white/[0.06] rounded-full hover:bg-orange-500/10 hover:border-orange-500/30 hover:text-orange-300 transition duration-300';
+      pill.textContent = `+ ${skill}`;
+      resultMissingSkills.appendChild(pill);
+    });
+
+    // Populate improvements list
+    resultImprovementsList.innerHTML = '';
+    cleanPattern.improvements.forEach(improvement => {
+      const li = document.createElement('li');
+      li.className = 'relative pl-3';
+      li.innerHTML = improvement;
+      resultImprovementsList.appendChild(li);
+    });
+
+    // Populate formatting list
+    resultFormattingList.innerHTML = '';
+    cleanPattern.formatting.forEach(formatRule => {
+      const li = document.createElement('li');
+      li.className = 'relative pl-3';
+      li.innerHTML = formatRule;
+      resultFormattingList.appendChild(li);
+    });
+  }
+
+  // --- Premium LinkedIn Headline Generator Logic ---
+  const headlineRoleInput = document.getElementById('headline-role-input');
+  const headlineSkillsInput = document.getElementById('headline-skills-input');
+  const generateHeadlinesBtn = document.getElementById('generate-headlines-btn');
+  const headlineIdleState = document.getElementById('headline-idle-state');
+  const headlineLoader = document.getElementById('headline-loader');
+  const headlineStepText = document.getElementById('headline-loader-step');
+  const headlineResultsContainer = document.getElementById('headline-results-container');
+  const headlineCardsContainer = document.getElementById('headline-cards');
+  const accentBtns = document.querySelectorAll('.headline-accent-btn');
+
+  let activeAccent = 'highimpact';
+
+  // Toggle active accent buttons
+  accentBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      accentBtns.forEach(b => {
+        b.classList.remove('bg-purple-500/10', 'border-purple-500/40', 'text-purple-300');
+        b.classList.add('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
+      });
+
+      btn.classList.remove('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
+      btn.classList.add('bg-purple-500/10', 'border-purple-500/40', 'text-purple-300');
+
+      if (btn.id === 'accent-highimpact') activeAccent = 'highimpact';
+      else if (btn.id === 'accent-growth') activeAccent = 'growth';
+      else if (btn.id === 'accent-creative') activeAccent = 'creative';
+    });
+  });
+
+  if (generateHeadlinesBtn) {
+    generateHeadlinesBtn.addEventListener('click', () => {
+      const role = headlineRoleInput.value.trim();
+      const skillsRaw = headlineSkillsInput.value.trim();
+
+      if (!role) {
+        alert("Please enter a target professional role (e.g. Frontend Engineer).");
+        return;
+      }
+
+      // Parse and clean skills
+      const skills = skillsRaw
+        ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean)
+        : ["React", "JavaScript", "Cloud Deployment"];
+
+      // Pad skills if too few to prevent undefined values
+      while (skills.length < 3) {
+        skills.push("Agile Methods", "TypeScript", "System Engineering");
+      }
+
+      // Show loader
+      headlineIdleState.classList.add('hidden');
+      headlineResultsContainer.classList.add('hidden');
+      headlineLoader.classList.remove('hidden');
+
+      const builderSteps = [
+        "Analyzing search frequency indices...",
+        "Applying semantic title alignment...",
+        "Formulating recruiter hook accents..."
+      ];
+
+      let stepIdx = 0;
+      headlineStepText.textContent = builderSteps[0];
+
+      const intervalId = setInterval(() => {
+        stepIdx++;
+        if (stepIdx < builderSteps.length) {
+          headlineStepText.textContent = builderSteps[stepIdx];
+        } else {
+          clearInterval(intervalId);
+          renderGeneratedHeadlines(role, skills);
+        }
+      }, 400);
+    });
+  }
+
+  function renderGeneratedHeadlines(role, skills) {
+    headlineLoader.classList.add('hidden');
+    headlineResultsContainer.classList.remove('hidden');
+    headlineResultsContainer.classList.add('animate-fadeIn');
+
+    // Define headlines based on active accent selection
+    let templates = [];
+    
+    if (activeAccent === 'highimpact') {
+      templates = [
+        `${role} | Specialized in ${skills[0]} & ${skills[1]} | Driving Scalable Technical Architectures & Agile Quality Excellence`,
+        `${role} • Focusing on high-performance Client Systems using ${skills[0]}, ${skills[1]} & ${skills[2]}`,
+        `${role} | Builder of Interactive & Enterprise-Grade Products | Expert in ${skills[0]} & Modern Web Solutions`
+      ];
+    } else if (activeAccent === 'growth') {
+      templates = [
+        `${role} | Engineered 35% faster page load times using ${skills[0]} & targeted lazy-loading models`,
+        `${role} | Saved 15+ weekly team-hours by refactoring core legacy codebase with modern ${skills[1]}`,
+        `${role} • Scaled consumer application backend with ${skills[2]} to successfully handle 120K+ active daily requests`
+      ];
+    } else { // creative
+      templates = [
+        `✨ ${role} | Developing the future of interactive cloud platforms using ${skills[0]} & ${skills[1]}`,
+        `🚀 ${role} | Bridging clean backend algorithms with pleasant client designs using ${skills[0]} • ${skills[2]}`,
+        `💡 Code Architect & Tech Advocate focused on inclusive developer experiences with ${skills[0]} and ${skills[1]}`
+      ];
+    }
+
+    // Load templates into output list
+    headlineCardsContainer.innerHTML = '';
+    
+    templates.forEach((headline, index) => {
+      const card = document.createElement('div');
+      card.className = 'glass-panel p-4 rounded-xl flex items-start justify-between gap-4 border border-white/[0.04] hover:bg-white/[0.03] transition duration-200';
+      
+      card.innerHTML = `
+        <div class="flex-1">
+          <span class="font-mono text-[9px] font-bold text-cyan-400 uppercase tracking-widest block mb-1">Option 0${index + 1}</span>
+          <p class="text-sm font-medium text-gray-200 leading-relaxed">${headline}</p>
+        </div>
+        <button class="copy-headline-btn flex items-center justify-center p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-purple-500/10 hover:border-purple-500/20 text-gray-400 hover:text-purple-300 transition duration-300 cursor-pointer" title="Copy to clipboard">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+          </svg>
+        </button>
+      `;
+
+      // Copy click handler
+      const copyBtn = card.querySelector('.copy-headline-btn');
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(headline).then(() => {
+          // Visual feedback
+          copyBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+          `;
+          copyBtn.classList.add('bg-emerald-500/10', 'border-emerald-500/20');
+          
+          setTimeout(() => {
+            copyBtn.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+              </svg>
+            `;
+            copyBtn.classList.remove('bg-emerald-500/10', 'border-emerald-500/20');
+          }, 2000);
+        });
+      });
+
+      headlineCardsContainer.appendChild(card);
+    });
+  }
+
+  // --- Real-Time Interview Question Generator Logic ---
+  const interviewRoleSelect = document.getElementById('interview-role-select');
+  const generateQuestionsBtn = document.getElementById('generate-questions-btn');
+  const interviewIdleState = document.getElementById('interview-idle-state');
+  const interviewLoader = document.getElementById('interview-loader');
+  const interviewStepText = document.getElementById('interview-loader-step');
+  const interviewResultsContainer = document.getElementById('interview-results-container');
+  const interviewCardsContainer = document.getElementById('interview-cards');
+  const interviewResultsRoleBadge = document.getElementById('interview-results-role-badge');
+  const interviewResultsDiffBadge = document.getElementById('interview-results-diff-badge');
+  const diffBtns = document.querySelectorAll('.interview-diff-btn');
+
+  let activeDifficulty = 'Medium';
+
+  // Toggle difficulty buttons
+  diffBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      diffBtns.forEach(b => {
+        b.classList.remove('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
+        b.classList.add('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
+      });
+
+      btn.classList.remove('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
+      btn.classList.add('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
+
+      if (btn.id === 'diff-easy') activeDifficulty = 'Easy';
+      else if (btn.id === 'diff-medium') activeDifficulty = 'Medium';
+      else if (btn.id === 'diff-hard') activeDifficulty = 'Hard';
+    });
+  });
+
+  // Comprehensive Question Pool
+  const QUESTIONS_POOL = {
+    "Frontend Developer": {
+      "Easy": [
+        {
+          question: "What is the difference between 'span' and 'div' elements in HTML5?",
+          answer: "A 'div' is a block-level element, which always starts on a new line and takes up the full width available. A 'span' is an inline element, which does not start on a new line and only takes up as much width as necessary."
+        },
+        {
+          question: "Explain the box model in CSS.",
+          answer: "The CSS box model is a container that wraps around HTML elements. It consists of multiple layers: Content (where text and images appear), Padding (clears an area around the content), Border (a border that goes around the padding and content), and Margin (clears an area outside the border)."
+        }
+      ],
+      "Medium": [
+        {
+          question: "What is Event Delegation in JavaScript & why should we use it?",
+          answer: "Event delegation is a design pattern where we attach a single event listener to a parent element rather than attaching multiple event listeners directly to individual children. It works because of Event Bubbling, where events propagate up through ancestors. Benefits include lower memory footprint and automatic handler setups for dynamically added children."
+        },
+        {
+          question: "Explain the virtual DOM model used in frameworks like React.",
+          answer: "The virtual DOM is an in-memory, lightweight representation of the real DOM. When changes occur, the framework generates a new virtual DOM tree, compares it with the previous snapshot (a process called 'diffing'), and applies only the minimum necessary changes to the real DOM (called 'reconciliation'), enhancing rendering speeds."
+        }
+      ],
+      "Hard": [
+        {
+          question: "Detail standard techniques you would employ to reduce First Contentful Paint (FCP) and Time to Interactive (TTI) metrics.",
+          answer: "1. Leverage critical CSS extraction and inline it in the HTML head. 2. Implement strict code-splitting using dynamic imports to send minimal JS bundles. 3. Defer or load non-critical third-party analytics scripts asynchronously. 4. Utilize compressed next-gen image formats (WebP/AVIF) paired with modern source set attributes."
+        },
+        {
+          question: "Explain Web Component encapsulation, shadow DOM limits, and custom element lifecycle scopes.",
+          answer: "Web Components rely on Custom Elements (defining custom HTML tags), Shadow DOM (encapsulated subtree with localized styles), and HTML templates. The lifecycle callbacks are connectedCallback (fired when element enters layout), disconnectedCallback (runs on cleanup), and attributeChangedCallback (monitors custom property updates)."
+        }
+      ]
+    },
+    "Java Developer": {
+      "Easy": [
+        {
+          question: "What is the difference between JDK, JRE, and JVM?",
+          answer: "JVM (Java Virtual Machine) executes compiled bytecode. JRE (Java Runtime Environment) consists of the JVM plus core run runtime library classes. JDK (Java Development Kit) is the full software bundle, containing JRE, compiler, and developer tools like debugger."
+        },
+        {
+          question: "Explain the difference between equals() override and reference verification (==).",
+          answer: "The '==' operator performs physical identity reference comparison (checks if both variables point to the exact same memory address). The equals() method represents logical value equivalence (checks if the contents of two distinct objects are identical, which can be custom-defined)."
+        }
+      ],
+      "Medium": [
+        {
+          question: "Explain the difference between HashMap and ConcurrentHashMap in multi-threaded systems.",
+          answer: "HashMap is not synchronized or thread-safe; simultaneous write actions can corrupt internal linked lists. Hashtable locks the entire map, hurting performance. ConcurrentHashMap optimizes this by locking on granular segments or buckets independently, allowing multiple threads to safely perform concurrent read-write actions."
+        },
+        {
+          question: "What is Garbage Collection (GC) in Java and how do Generational Collectors operate?",
+          answer: "Java Garbage Collection is an automatic process that reclaims heap memory by destroying unreachable objects. Generational collectors group heap spaces into 'Young Generation' ( Eden/Survivor, where short-lived instances live) and 'Old Generation' (for objects surviving multiple clean cycles), reducing garbage collection sweep times."
+        }
+      ],
+      "Hard": [
+        {
+          question: "How do you detect, diagnose, and resolve Thread Deadlocks in a production environments?",
+          answer: "1. Diagnose using tools like 'jstack' or JDK Mission Control to dump stack states. 2. Identify threads waiting on mutual lock combinations (Thread A holds Lock 1 and waits for Lock 2; Thread B holds Lock 2 and waits for Lock 1). 3. Resolve by enforcing rigid global lock acquisition orders or setting reasonable timeouts on resource lock requests."
+        },
+        {
+          question: "Describe JVM Memory Tuning adjustments you would utilize to reduce application pause times.",
+          answer: "Use G1GC or ZGC collectors which perform concurrent phases alongside application threads. Tighten survivor spaces or adjust Young-to-Old ratio (-XX:NewRatio) to prevent short-lived instances from degrading into old heaps, minimizing the frequency of Stop-The-World (STW) pauses."
+        }
+      ]
+    },
+    "Web Developer": {
+      "Easy": [
+        {
+          question: "What is HTTP and how does it differ from HTTPS?",
+          answer: "HTTP is the foundational Hypertext Transfer Protocol used to exchange data. HTTPS is the secure version of HTTP, utilizing Transport Layer Security (TLS/SSL) encryption to secure the communication channel, preventing man-in-the-middle interceptions."
+        },
+        {
+          question: "Briefly explain what cookies, localStorage, and sessionStorage are.",
+          answer: "Cookies are small string pairs sent with every HTTP request, limited to 4KB. LocalStorage persists data indefinitely in the client's browser (up to 5-10MB). SessionStorage acts identically to localStorage, but automatically purges state as soon as the associated browser tab or window is closed."
+        }
+      ],
+      "Medium": [
+        {
+          question: "What is CORS (Cross-Origin Resource Sharing) and how do you resolve CORS errors?",
+          answer: "CORS is a browser security mechanism that restricts web pages from requesting resources from a different domain than the one that served the page. When CORS fails, the backend must return explicit access headers (e.g., 'Access-Control-Allow-Origin: *') specifying which client origins are permitted to load resources."
+        },
+        {
+          question: "Compare REST APIs and GraphQL in production-level layouts.",
+          answer: "REST APIs rely on strict URL endpoint mappings returning standard payload trees, which can lead to over-fetching. GraphQL provides a single dynamic endpoint where clients request customized JSON arrays with exact target properties, dramatically reducing redundant network bandwidth."
+        }
+      ],
+      "Hard": [
+        {
+          question: "Detail standard techniques for securing APIs against common OWASP Top 10 vulnerabilities.",
+          answer: "1. Implement server-side JWT authentication with short lifetimes. 2. Enforce rate-limiting and route throttling to block DDoS attempts. 3. Use parameter bindings and ORMs to prevent SQL Injection inputs. 4. Cleanse and validate all incoming inputs to avoid Cross-Site Scripting (XSS)."
+        },
+        {
+          question: "How do database indices speed up read queries, and what are their trade-offs?",
+          answer: "Database indexes (often implemented as B-Trees or Hash indexes) act as quick lookup tables to avoid slow sequential table scans. Trade-offs include increased physical disc storage overhead and slower write speeds, since the index arrays must be dynamically re-sorted during every INSERT, UPDATE, or DELETE action."
+        }
+      ]
+    }
+  };
+
+  if (generateQuestionsBtn) {
+    generateQuestionsBtn.addEventListener('click', () => {
+      const selectedRole = interviewRoleSelect.value;
+      
+      // Toggle views
+      interviewIdleState.classList.add('hidden');
+      interviewResultsContainer.classList.add('hidden');
+      interviewLoader.classList.remove('hidden');
+
+      const loaderMessages = [
+        "Analyzing target framework specs...",
+        "Selecting appropriate tier metrics...",
+        "Generating solution guides..."
+      ];
+
+      let msgIdx = 0;
+      interviewStepText.textContent = loaderMessages[0];
+
+      const stepInterval = setInterval(() => {
+        msgIdx++;
+        if (msgIdx < loaderMessages.length) {
+          interviewStepText.textContent = loaderMessages[msgIdx];
+        } else {
+          clearInterval(stepInterval);
+          renderInterviewQuestions(selectedRole);
+        }
+      }, 400);
+    });
+  }
+
+  function renderInterviewQuestions(role) {
+    interviewLoader.classList.add('hidden');
+    interviewResultsContainer.classList.remove('hidden');
+    interviewResultsContainer.classList.add('animate-fadeIn');
+
+    // Select questions
+    const questionsList = QUESTIONS_POOL[role][activeDifficulty];
+    
+    // Update headers
+    interviewResultsRoleBadge.innerHTML = `
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+      ${role} Scenarios
+    `;
+    interviewResultsDiffBadge.textContent = activeDifficulty.toUpperCase();
+
+    // Populate cards
+    interviewCardsContainer.innerHTML = '';
+
+    questionsList.forEach((item, index) => {
+      const qCard = document.createElement('div');
+      qCard.className = 'glass-panel p-5 rounded-xl border border-white/[0.04] space-y-3 relative hover:bg-white/[0.01]/80 transition duration-200';
+      
+      qCard.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="space-y-1">
+            <span class="font-mono text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Question ${index + 1}</span>
+            <h5 class="text-sm sm:text-base font-bold text-gray-100 leading-snug">${item.question}</h5>
+          </div>
+          <span class="px-2.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+            activeDifficulty === 'Easy' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+            activeDifficulty === 'Medium' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+            'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+          }">${activeDifficulty}</span>
+        </div>
+
+        <div class="pt-2 border-t border-white/[0.05]">
+          <button class="toggle-answer-btn text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1.5 cursor-pointer">
+            <span>Show Expert Solution</span>
+            <svg class="w-3 h-3 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          
+          <div class="answer-content hidden mt-3 p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-xs sm:text-sm text-gray-300 leading-relaxed animate-fadeIn">
+            <p class="font-bold text-emerald-400 mb-1.5">🎯 Expert Answer Key:</p>
+            <p class="italic text-gray-200">${item.answer}</p>
+          </div>
+        </div>
+      `;
+
+      // Handle collapsible solution click
+      const toggleBtn = qCard.querySelector('.toggle-answer-btn');
+      const answerContent = qCard.querySelector('.answer-content');
+      const arrowIcon = qCard.querySelector('.toggle-answer-btn svg');
+
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = answerContent.classList.contains('hidden');
+        if (isHidden) {
+          answerContent.classList.remove('hidden');
+          arrowIcon.classList.add('rotate-180');
+          toggleBtn.querySelector('span').textContent = "Hide Expert Solution";
+        } else {
+          answerContent.classList.add('hidden');
+          arrowIcon.classList.remove('rotate-180');
+          toggleBtn.querySelector('span').textContent = "Show Expert Solution";
+        }
+      });
+
+      interviewCardsContainer.appendChild(qCard);
+    });
+  }
+
+  // --- Mock Interview Chatbot Logic ---
+  const chatbotPersonaSelect = document.getElementById('chatbot-persona-select');
+  const personaDisplayName = document.getElementById('persona-display-name');
+  const personaDisplayDesc = document.getElementById('persona-display-desc');
+  const chatHeaderPersonaName = document.getElementById('chat-header-persona-name');
+  const chatMessagesArea = document.getElementById('chat-messages-area');
+  const chatTypingIndicator = document.getElementById('chat-typing-indicator');
+  const chatInputText = document.getElementById('chat-input-text');
+  const chatForm = document.getElementById('chat-form');
+  const resetChatBtn = document.getElementById('reset-chat-btn');
+  const chatStarterBtns = document.querySelectorAll('.chat-starter-btn');
+
+  // Configured Persona details
+  const PERSONA_PROFILES = {
+    tough: {
+      name: "Sarah - Tough Tech Lead",
+      short: "Sarah (Amazon Tech Lead)",
+      desc: "Focuses strictly on architectural scaling bounds, operational metrics, edge cases, and structural logic. Expect tough follow-ups!",
+      accent: "AGGRESSION: HIGH | EVALUATION: OBJECTIVE",
+      initialMsg: "Welcome to your mock interview session! I'm Sarah, a Principal Engineer. Let's make this highly effective. Tell me about a time you had to deliver a system when your requirements were highly ambiguous."
+    },
+    empathetic: {
+      name: "Marcus - Empathetic Recruiter",
+      short: "Marcus (Stripe Recruiter)",
+      desc: "Warm and encouraging. Evaluates cultural fits, collaboration, STAR method storytelling, and leadership growth behaviors.",
+      accent: "EMPATHY: MAXIMUM | FOCUS: LEADERSHIP & CULTURE",
+      initialMsg: "Hi there! I'm Marcus, the recruiting lead here. My goal is to hear your story, understand your culture alignment, and help you shine. What's a product or challenge you worked on that you are most proud of?"
+    },
+    system: {
+      name: "Elena - Systems Architect",
+      short: "Elena (Systems Oracle)",
+      desc: "Evaluates high-level structural patterns, distributed services, databases, caching layers, and fault tolerance strategies.",
+      accent: "STABILITY: ABSOLUTE | FOCUS: HIGH AVAILABILITY",
+      initialMsg: "Hello! I'm Elena, and we will focus on systemic trade-offs, scalability, and network architectures. How would you design a rate limiter that supports millions of requests per minute across multiple regions?"
+    }
+  };
+
+  // Conversational response presets (Simulated dynamic responses based on patterns)
+  const RESPONSE_FEEDBACK_ENGINE = {
+    tough: [
+      {
+        well: "You clearly formulated the basic context and mentioned toolsets.",
+        missing: "You skipped performance telemetry, SLA parameters, or precise numbers on exactly how much you scaled the system.",
+        followUp: "Understood. But how did you determine that boundary? If your system suddenly saw a 10x spike on the gateway, what failover metric would trip first? Let's trace the storage bottleneck."
+      },
+      {
+        well: "Good usage of structural hierarchy to break down your responsibilities.",
+        missing: "You focused too much on team management instead of your single personal technical contribution.",
+        followUp: "I want to drill into that. When the code was deployed and failed in sandbox, how did you analyze the production log stacks to find the root memory leak? Walk me through the telemetry."
+      }
+    ],
+    empathetic: [
+      {
+        well: "Your enthusiasm shines! Explaining your personal motivation really grounds your story well.",
+        missing: "Ensure you clearly split your STAR method. Specify the exact 'Result' metric that proved your system was highly successful.",
+        followUp: "That is wonderfully collaborative! How did your teammates react to your new solution, and what did you learn about their work styles during that project?"
+      },
+      {
+        well: "Great explanation of how you handled a team conflict elegantly.",
+        missing: "Don't forget to highlight how you supported an inclusive, feedback-rich environment afterwards.",
+        followUp: "Excellent outcome. If you had to mentor a junior dev going through that today, what would be the single advice you'd share with them based on this experience?"
+      }
+    ],
+    system: [
+      {
+        well: "Excellent usage of database layering concepts to prevent network contention.",
+        missing: "You need to account for eventual consistency limits or Redis cache serialization delays on cold-starts.",
+        followUp: "Good blueprint. If the regional load balancer fails completely, how do you handle localized read replica synchronization? Which CAP theorem attributes did you choose?"
+      },
+      {
+        well: "Thoughtful approach on vertical scaling versus clustering your service nodes.",
+        missing: "You didn't outline single-point-of-failure (SPOF) risks in your high-availability gateway.",
+        followUp: "Solid start. Let's look closer at your message queue system. If RabbitMQ buffers fill up, how blocks are dropped or backed off gracefully?"
+      }
+    ]
+  };
+
+  let responseIndex = { tough: 0, empathetic: 0, system: 0 };
+
+  // Set initial persona on load
+  function resetChat(personaKey = 'tough') {
+    const profile = PERSONA_PROFILES[personaKey];
+    personaDisplayName.textContent = profile.name;
+    personaDisplayDesc.textContent = profile.desc;
+    chatHeaderPersonaName.textContent = profile.short;
+
+    // Clear and add welcome message
+    chatMessagesArea.innerHTML = `
+      <div class="flex items-start gap-3 max-w-[85%] animate-fadeIn">
+        <div class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold text-amber-300 shrink-0">AI</div>
+        <div class="p-3.5 bg-white/[0.03] border border-white/[0.05] rounded-r-2xl rounded-bl-2xl text-xs sm:text-sm text-gray-200 leading-relaxed shadow-sm">
+          ${profile.initialMsg}
+        </div>
+      </div>
+    `;
+
+    chatMessagesArea.scrollTop = 0;
+  }
+
+  if (chatbotPersonaSelect) {
+    chatbotPersonaSelect.addEventListener('change', (e) => {
+      resetChat(e.target.value);
+    });
+  }
+
+  if (resetChatBtn) {
+    resetChatBtn.addEventListener('click', () => {
+      const activeVal = chatbotPersonaSelect ? chatbotPersonaSelect.value : 'tough';
+      resetChat(activeVal);
+    });
+  }
+
+  // Handle suggested starters clicks
+  chatStarterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rawText = btn.textContent.replace(/"/g, '').trim();
+      if (chatInputText) {
+        chatInputText.value = rawText;
+        chatInputText.focus();
+      }
+    });
+  });
+
+  // Handle message sending
+  if (chatForm) {
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const userMessage = chatInputText.value.trim();
+      if (!userMessage) return;
+
+      // Disable inputs during typing delay
+      chatInputText.value = '';
+      
+      // Add User response bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'flex items-start justify-end gap-3 max-w-[85%] ml-auto animate-fadeIn';
+      userBubble.innerHTML = `
+        <div class="p-3.5 bg-purple-600/15 border border-purple-500/30 rounded-l-2xl rounded-tr-2xl text-xs sm:text-sm text-gray-100 leading-relaxed shadow-sm">
+          ${userMessage}
+        </div>
+        <div class="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-[10px] font-bold text-purple-300 shrink-0">ME</div>
+      `;
+      chatMessagesArea.appendChild(userBubble);
+      
+      // Auto scroll
+      chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+
+      // Display typing indicator
+      chatTypingIndicator.classList.remove('hidden');
+
+      // Setup simulated feedback loader
+      const currentPersonaId = chatbotPersonaSelect ? chatbotPersonaSelect.value : 'tough';
+      const feedPool = RESPONSE_FEEDBACK_ENGINE[currentPersonaId];
+      const curIdx = responseIndex[currentPersonaId] % feedPool.length;
+      const feedback = feedPool[curIdx];
+      // Increment state counters
+      responseIndex[currentPersonaId] = curIdx + 1;
+
+      setTimeout(() => {
+        // Hide indicator
+        chatTypingIndicator.classList.add('hidden');
+
+        // Append simulated ai review response
+        const aiResponse = document.createElement('div');
+        aiResponse.className = 'flex items-start gap-3 max-w-[85%] animate-fadeIn';
+        
+        aiResponse.innerHTML = `
+          <div class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold text-amber-300 shrink-0">AI</div>
+          <div class="space-y-3.5 flex-1">
+            <div class="p-4 bg-white/[0.03]/80 border border-white/[0.05] rounded-r-2xl rounded-bl-2xl text-xs sm:text-sm text-gray-200 leading-relaxed shadow-sm space-y-2">
+              <div class="flex items-center gap-1.5 text-xs text-amber-300 font-mono">
+                <span>⚡ COGNITIVE COACH REPORT</span>
+              </div>
+              
+              <div class="space-y-1.5 pt-1 text-[11px] sm:text-xs">
+                <p><strong class="text-emerald-400">✓ WHAT SHINES:</strong> ${feedback.well}</p>
+                <p><strong class="text-amber-400">⚠️ ATS / INTERVIEW GAPS:</strong> ${feedback.missing}</p>
+              </div>
+
+              <div class="pt-2 border-t border-white/[0.05] text-xs font-medium text-gray-300 leading-relaxed">
+                ${feedback.followUp}
+              </div>
+            </div>
+          </div>
+        `;
+
+        chatMessagesArea.appendChild(aiResponse);
+        
+        // Final smooth scroll
+        chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+      }, 1200);
+    });
+  }
+
+  // --- Mobile Responsive Navbar Toggling Logic ---
+  const mobileMenuToggleBtn = document.getElementById('mobile-menu-toggle');
+  const mobileNavigationDropdown = document.getElementById('mobile-navigation-dropdown');
+  const hamburgerIcon = document.getElementById('hamburger-icon');
+  const closeIcon = document.getElementById('close-icon');
+  const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+
+  if (mobileMenuToggleBtn && mobileNavigationDropdown) {
+    mobileMenuToggleBtn.addEventListener('click', () => {
+      const isHidden = mobileNavigationDropdown.classList.contains('hidden');
+      if (isHidden) {
+        mobileNavigationDropdown.classList.remove('hidden');
+        hamburgerIcon.classList.add('hidden');
+        closeIcon.classList.remove('hidden');
+      } else {
+        mobileNavigationDropdown.classList.add('hidden');
+        hamburgerIcon.classList.remove('hidden');
+        closeIcon.classList.add('hidden');
+      }
+    });
+
+    // Close mobile dropdown when clicking any of the links
+    mobileNavLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        mobileNavigationDropdown.classList.add('hidden');
+        hamburgerIcon.classList.remove('hidden');
+        closeIcon.classList.add('hidden');
+      });
+    });
+  }
+
+  // Set default initial chat state
+  resetChat('tough');
+});
+
+
