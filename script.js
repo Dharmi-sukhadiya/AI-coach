@@ -3,7 +3,101 @@
  * Handles custom animations, typing effects, interactive modes, and user actions.
  */
 
+
 document.addEventListener('DOMContentLoaded', () => {
+  async function analyzeResumeWithAI(resumeText, targetRole) {
+  try {
+    const response = await fetch('/api/analyze-resume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        resumeText,
+        targetRole
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Analysis failed');
+    }
+
+    analyzerLoader.classList.add('hidden');
+    resultCard.classList.remove('hidden');
+
+    renderAIResults(data);
+
+  } catch (error) {
+    analyzerLoader.classList.add('hidden');
+
+    alert(error.message || 'Resume analysis failed.');
+
+    console.error(error);
+  }
+}
+
+function renderAIResults(data) {
+
+  let score = 0;
+
+  resultAtsScore.textContent = '0';
+
+  const interval = setInterval(() => {
+
+    score += 2;
+
+    if (score >= data.atsScore) {
+
+      score = data.atsScore;
+
+      clearInterval(interval);
+    }
+
+    resultAtsScore.textContent = score;
+
+  }, 20);
+
+  resultMatchStatus.textContent =
+    `${data.profession} Resume Analysis`;
+
+  resultMissingSkills.innerHTML = '';
+
+  data.missingSkills.forEach(skill => {
+
+    const pill = document.createElement('span');
+
+    pill.className =
+      'px-3 py-1 bg-white/[0.04] text-xs font-semibold rounded-full border border-white/[0.08]';
+
+    pill.textContent = skill;
+
+    resultMissingSkills.appendChild(pill);
+  });
+
+  resultImprovementsList.innerHTML = '';
+
+  data.improvements.forEach(item => {
+
+    const li = document.createElement('li');
+
+    li.textContent = item;
+
+    resultImprovementsList.appendChild(li);
+  });
+
+  resultFormattingList.innerHTML = '';
+
+  data.formatting.forEach(item => {
+
+    const li = document.createElement('li');
+
+    li.textContent = item;
+
+    resultFormattingList.appendChild(li);
+  });
+}
   // Navigation & Scroll to main features list
   const ctaBtn = document.getElementById('cta-btn');
   const featuresSection = document.getElementById('features-section');
@@ -79,41 +173,7 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
   }
 
   // Pre-configured custom response data depending on the keywords
-  const ANALYSIS_PATTERNS = {
-    software: {
-      score: 74,
-      status: "✓ FOUNDATIONAL COMPLIANCE",
-      statusClass: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-      skills: ["Docker / Kubernetes", "CI/CD Pipelines", "System Design Matrices", "Unit Testing (Jest/Mocha)", "Redis Cache", "TypeScript Integration"],
-      improvements: [
-        "✦ <strong>Integrate hard metrics:</strong> Rewrite standard bullets to include quantitative outputs (e.g. 'Improved speed by 35% using lazy-loading setup').",
-        "✦ <strong>Focus on technologies:</strong> Replace generic statements like 'Worked on the frontend' with technical stack specifics ('Architected modular React/Vite frontends').",
-        "✦ <strong>Leverage strong action verbs:</strong> Trade simple verbs like 'Worked on', 'Helped make' for advanced ones like 'Spearheaded', 'Optimized', 'Refactored'."
-      ],
-      formatting: [
-        "✦ <strong>Summary formatting:</strong> Swap soft soft-skills summary descriptions ('team player, fast learner') with precise domain specialization summaries.",
-        "✦ <strong>Section alignment check:</strong> Ensure work experience dates correspond strictly to clean corporate formats like 'MM/YYYY' for standard scanning passes.",
-        "✦ <strong>Avoid vertical dividers:</strong> Your pipeline links utilize thin pipes ('|'); some legacy parsing trees can break parsing on custom text columns."
-      ]
-    },
-    default: {
-      score: 68,
-      status: "⚠️ REJECTION WARNING",
-      statusClass: "bg-rose-500/15 text-rose-400 border-rose-500/20",
-      skills: ["KPI Tracking Metrics", "Cross-Functional Synergy", "Agile Roadmap Delivery", "Cloud Ingress Configurations", "System Fault Isolation"],
-      improvements: [
-        "✦ <strong>Enhance Impact:</strong> Highlight individual scope of ownership rather than passive execution pipelines.",
-        "✦ <strong>Incorporate modern tools:</strong> Add industry-accepted standard toolsets related to data analytics and structural tracking.",
-        "✦ <strong>Increase metric frequency:</strong> Ensure every single section bullet boasts at least one percentage, revenue, or hour tracking multiplier."
-      ],
-      formatting: [
-        "✦ <strong>Contact coordinates:</strong> Position email, github, and physical location coordinates on separate crisp bullet rows.",
-        "✦ <strong>Simplify hierarchy:</strong> Stay away from custom tabular indentations or graphic icons that confuse ATS string-parsing tables.",
-        "✦ <strong>Standardize header titles:</strong> Use standard tags like 'Professional Experience' instead of 'Work Experience'."
-      ]
-    }
-  };
-
+  
   if (analyzeBtn) {
     analyzeBtn.addEventListener('click', () => {
       const textVal = analyzerTextarea.value.trim();
@@ -146,69 +206,13 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
           loaderStepText.textContent = steps[currentStepIdx];
         } else {
           clearInterval(stepInterval);
-          renderAnalysisResults(titleVal);
+          analyzeResumeWithAI(textVal, titleVal);
         }
       }, 500);
     });
   }
 
-  function renderAnalysisResults(targetTitle) {
-    analyzerLoader.classList.add('hidden');
-    resultCard.classList.remove('hidden');
-    resultCard.classList.add('animate-fadeIn');
-
-    // Choose key template based on user target selection
-    const normalizedTitle = targetTitle.toLowerCase();
-    const cleanPattern = (normalizedTitle.includes('software') || normalizedTitle.includes('engineer') || normalizedTitle.includes('developer'))
-      ? ANALYSIS_PATTERNS.software
-      : ANALYSIS_PATTERNS.default;
-
-    // Trigger score ticking count animation for visual satisfaction
-    let startingScore = 0;
-    const finalScore = cleanPattern.score;
-    resultAtsScore.textContent = '0';
-
-    const countInterval = setInterval(() => {
-      startingScore += 2;
-      if (startingScore >= finalScore) {
-        resultAtsScore.textContent = finalScore;
-        clearInterval(countInterval);
-      } else {
-        resultAtsScore.textContent = startingScore;
-      }
-    }, 20);
-
-    // Populate Status Indicators
-    resultMatchStatus.textContent = cleanPattern.status;
-    resultMatchStatus.className = `inline-flex px-2.5 py-1 rounded-md text-xs font-mono font-semibold ${cleanPattern.statusClass} border mb-2`;
-
-    // Populate Missing Skills pills
-    resultMissingSkills.innerHTML = '';
-    cleanPattern.skills.forEach(skill => {
-      const pill = document.createElement('span');
-      pill.className = 'px-3 py-1 bg-white/[0.04] text-xs font-semibold text-gray-200 border border-white/[0.06] rounded-full hover:bg-orange-500/10 hover:border-orange-500/30 hover:text-orange-300 transition duration-300';
-      pill.textContent = `+ ${skill}`;
-      resultMissingSkills.appendChild(pill);
-    });
-
-    // Populate improvements list
-    resultImprovementsList.innerHTML = '';
-    cleanPattern.improvements.forEach(improvement => {
-      const li = document.createElement('li');
-      li.className = 'relative pl-3';
-      li.innerHTML = improvement;
-      resultImprovementsList.appendChild(li);
-    });
-
-    // Populate formatting list
-    resultFormattingList.innerHTML = '';
-    cleanPattern.formatting.forEach(formatRule => {
-      const li = document.createElement('li');
-      li.className = 'relative pl-3';
-      li.innerHTML = formatRule;
-      resultFormattingList.appendChild(li);
-    });
-  }
+ 
 
   // --- Premium LinkedIn Headline Generator Logic ---
   const headlineRoleInput = document.getElementById('headline-role-input');
@@ -250,15 +254,9 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
         return;
       }
 
-      // Parse and clean skills
       const skills = skillsRaw
         ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean)
-        : ["React", "JavaScript", "Cloud Deployment"];
-
-      // Pad skills if too few to prevent undefined values
-      while (skills.length < 3) {
-        skills.push("Agile Methods", "TypeScript", "System Engineering");
-      }
+        : [];
 
       // Show loader
       headlineIdleState.classList.add('hidden');
@@ -286,10 +284,108 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
     });
   }
 
-  function renderGeneratedHeadlines(role, skills) {
+  function buildFallbackHeadlines(role, skills) {
+    const focus = skills[0] || 'team leadership';
+    const secondary = skills[1] || 'stakeholder communication';
+    const tertiary = skills[2] || 'business outcomes';
+
+    if (activeAccent === 'growth') {
+      return [
+        `${role} | Improving team alignment, delivery quality, and measurable ${tertiary}`,
+        `${role} | Driving clearer communication, stronger execution, and KPI-focused outcomes`,
+        `${role} | Helping teams turn priorities into consistent delivery through ${focus}`
+      ];
+    }
+
+    if (activeAccent === 'creative') {
+      return [
+        `${role} | Building collaborative teams through ${focus} and practical execution`,
+        `${role} | Connecting people, process, and priorities with clear ${secondary}`,
+        `${role} | Creating calm, high-trust teams focused on ownership and outcomes`
+      ];
+    }
+
+    return [
+      `${role} | Specialized in ${focus} and ${secondary} | Driving team performance and business outcomes`,
+      `${role} | Leading cross-functional execution through clear communication and operational focus`,
+      `${role} | People-first leader focused on collaboration, accountability, and measurable results`
+    ];
+  }
+
+  function renderHeadlineCards(templates) {
+    headlineCardsContainer.innerHTML = '';
+    
+    templates.forEach((headline, index) => {
+      const card = document.createElement('div');
+      card.className = 'glass-panel p-4 rounded-xl flex items-start justify-between gap-4 border border-white/[0.04] hover:bg-white/[0.03] transition duration-200';
+      
+      card.innerHTML = `
+        <div class="flex-1">
+          <span class="font-mono text-[9px] font-bold text-cyan-400 uppercase tracking-widest block mb-1">Option 0${index + 1}</span>
+          <p class="text-sm font-medium text-gray-200 leading-relaxed">${escapeHtml(headline)}</p>
+        </div>
+        <button class="copy-headline-btn flex items-center justify-center p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-purple-500/10 hover:border-purple-500/20 text-gray-400 hover:text-purple-300 transition duration-300 cursor-pointer" title="Copy to clipboard">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+          </svg>
+        </button>
+      `;
+
+      const copyBtn = card.querySelector('.copy-headline-btn');
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(headline).then(() => {
+          copyBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+          `;
+          copyBtn.classList.add('bg-emerald-500/10', 'border-emerald-500/20');
+          
+          setTimeout(() => {
+            copyBtn.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+              </svg>
+            `;
+            copyBtn.classList.remove('bg-emerald-500/10', 'border-emerald-500/20');
+          }, 2000);
+        });
+      });
+
+      headlineCardsContainer.appendChild(card);
+    });
+  }
+
+  async function renderGeneratedHeadlines(role, skills) {
     headlineLoader.classList.add('hidden');
     headlineResultsContainer.classList.remove('hidden');
     headlineResultsContainer.classList.add('animate-fadeIn');
+
+    try {
+      const response = await fetch('/api/headlines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role,
+          skills,
+          accent: activeAccent
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !Array.isArray(data.headlines)) {
+        throw new Error(data.error || 'Could not generate headlines.');
+      }
+
+      renderHeadlineCards(data.headlines.slice(0, 3));
+    } catch (error) {
+      renderHeadlineCards(buildFallbackHeadlines(role, skills));
+    }
+
+    return;
 
     // Define headlines based on active accent selection
     let templates = [];
@@ -671,6 +767,41 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
   };
 
   let responseIndex = { tough: 0, empathetic: 0, system: 0 };
+  let chatHistory = [];
+
+  function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  function appendCoachResponse(feedback, isError = false) {
+    const aiResponse = document.createElement('div');
+    aiResponse.className = 'flex items-start gap-3 max-w-[85%] animate-fadeIn';
+    
+    aiResponse.innerHTML = `
+      <div class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold text-amber-300 shrink-0">AI</div>
+      <div class="space-y-3.5 flex-1">
+        <div class="p-4 bg-white/[0.03]/80 border border-white/[0.05] rounded-r-2xl rounded-bl-2xl text-xs sm:text-sm text-gray-200 leading-relaxed shadow-sm space-y-2">
+          <div class="flex items-center gap-1.5 text-xs ${isError ? 'text-rose-300' : 'text-amber-300'} font-mono">
+            <span>${isError ? 'AI COACH OFFLINE' : 'COGNITIVE COACH REPORT'}</span>
+          </div>
+          
+          <div class="space-y-1.5 pt-1 text-[11px] sm:text-xs">
+            <p><strong class="text-emerald-400">WHAT SHINES:</strong> ${escapeHtml(feedback.well)}</p>
+            <p><strong class="text-amber-400">ATS / INTERVIEW GAPS:</strong> ${escapeHtml(feedback.missing)}</p>
+          </div>
+
+          <div class="pt-2 border-t border-white/[0.05] text-xs font-medium text-gray-300 leading-relaxed">
+            ${escapeHtml(feedback.followUp)}
+          </div>
+        </div>
+      </div>
+    `;
+
+    chatMessagesArea.appendChild(aiResponse);
+    chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+  }
 
   // Set initial persona on load
   function resetChat(personaKey = 'tough') {
@@ -678,13 +809,14 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
     personaDisplayName.textContent = profile.name;
     personaDisplayDesc.textContent = profile.desc;
     chatHeaderPersonaName.textContent = profile.short;
+    chatHistory = [{ role: 'assistant', text: profile.initialMsg }];
 
     // Clear and add welcome message
     chatMessagesArea.innerHTML = `
       <div class="flex items-start gap-3 max-w-[85%] animate-fadeIn">
         <div class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold text-amber-300 shrink-0">AI</div>
         <div class="p-3.5 bg-white/[0.03] border border-white/[0.05] rounded-r-2xl rounded-bl-2xl text-xs sm:text-sm text-gray-200 leading-relaxed shadow-sm">
-          ${profile.initialMsg}
+          ${escapeHtml(profile.initialMsg)}
         </div>
       </div>
     `;
@@ -718,7 +850,7 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
 
   // Handle message sending
   if (chatForm) {
-    chatForm.addEventListener('submit', (e) => {
+    chatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const userMessage = chatInputText.value.trim();
@@ -726,17 +858,19 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
 
       // Disable inputs during typing delay
       chatInputText.value = '';
+      chatInputText.disabled = true;
       
       // Add User response bubble
       const userBubble = document.createElement('div');
       userBubble.className = 'flex items-start justify-end gap-3 max-w-[85%] ml-auto animate-fadeIn';
       userBubble.innerHTML = `
         <div class="p-3.5 bg-purple-600/15 border border-purple-500/30 rounded-l-2xl rounded-tr-2xl text-xs sm:text-sm text-gray-100 leading-relaxed shadow-sm">
-          ${userMessage}
+          ${escapeHtml(userMessage)}
         </div>
         <div class="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-[10px] font-bold text-purple-300 shrink-0">ME</div>
       `;
       chatMessagesArea.appendChild(userBubble);
+      chatHistory.push({ role: 'user', text: userMessage });
       
       // Auto scroll
       chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
@@ -744,15 +878,50 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
       // Display typing indicator
       chatTypingIndicator.classList.remove('hidden');
 
-      // Setup simulated feedback loader
       const currentPersonaId = chatbotPersonaSelect ? chatbotPersonaSelect.value : 'tough';
-      const feedPool = RESPONSE_FEEDBACK_ENGINE[currentPersonaId];
-      const curIdx = responseIndex[currentPersonaId] % feedPool.length;
-      const feedback = feedPool[curIdx];
-      // Increment state counters
-      responseIndex[currentPersonaId] = curIdx + 1;
+      let feedback;
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            persona: currentPersonaId,
+            message: userMessage,
+            history: chatHistory
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'The AI coach could not answer.');
+        }
+
+        feedback = {
+          well: data.well,
+          missing: data.missing,
+          followUp: data.followUp
+        };
+      } catch (error) {
+        feedback = {
+          well: 'Your message was received, but the live AI service did not return a response.',
+          missing: error.message || 'Check that your Gemini API key is added in the project environment.',
+          followUp: 'After adding the API key, try this same answer again and I will give situation-specific feedback.'
+        };
+      }
 
       setTimeout(() => {
+        chatTypingIndicator.classList.add('hidden');
+        appendCoachResponse(feedback);
+        chatHistory.push({
+          role: 'assistant',
+          text: `What shines: ${feedback.well}\nGap: ${feedback.missing}\nFollow-up: ${feedback.followUp}`
+        });
+        chatInputText.disabled = false;
+        chatInputText.focus();
+        return;
+
         // Hide indicator
         chatTypingIndicator.classList.add('hidden');
 
@@ -784,6 +953,12 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
         
         // Final smooth scroll
         chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+        chatHistory.push({
+          role: 'assistant',
+          text: `What shines: ${feedback.well}\nGap: ${feedback.missing}\nFollow-up: ${feedback.followUp}`
+        });
+        chatInputText.disabled = false;
+        chatInputText.focus();
       }, 1200);
     });
   }
