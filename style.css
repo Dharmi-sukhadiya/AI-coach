@@ -18,6 +18,15 @@ body {
   overflow-x: hidden;
   font-family: var(--font-sans);
 }
+#difficulty {
+  color: white !important;
+  background-color: #0f172a !important;
+}
+
+#difficulty option {
+  color: white !important;
+  background-color: #0f172a !important;
+}
 
 /* Modern Background Grid Overlay */
 .bg-grid {

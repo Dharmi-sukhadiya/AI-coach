@@ -5,6 +5,7 @@
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  
   async function analyzeResumeWithAI(resumeText, targetRole) {
   try {
     const response = await fetch('/api/analyze-resume', {
@@ -459,236 +460,121 @@ Skills: Web dev, CSS, HTML, JavaScript, Git, Team Player.`;
   }
 
   // --- Real-Time Interview Question Generator Logic ---
-  const interviewRoleSelect = document.getElementById('interview-role-select');
-  const generateQuestionsBtn = document.getElementById('generate-questions-btn');
-  const interviewIdleState = document.getElementById('interview-idle-state');
-  const interviewLoader = document.getElementById('interview-loader');
-  const interviewStepText = document.getElementById('interview-loader-step');
-  const interviewResultsContainer = document.getElementById('interview-results-container');
-  const interviewCardsContainer = document.getElementById('interview-cards');
-  const interviewResultsRoleBadge = document.getElementById('interview-results-role-badge');
-  const interviewResultsDiffBadge = document.getElementById('interview-results-diff-badge');
-  const diffBtns = document.querySelectorAll('.interview-diff-btn');
+  const roleInput = document.getElementById('role');
+const difficultySelect = document.getElementById('difficulty');
+const generateQuestionsBtn = document.getElementById('generate-questions-btn');
 
-  let activeDifficulty = 'Medium';
+const interviewIdleState = document.getElementById('interview-idle-state');
+const interviewLoader = document.getElementById('interview-loader');
+const interviewResultsContainer = document.getElementById('interview-results-container');
 
-  // Toggle difficulty buttons
-  diffBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      diffBtns.forEach(b => {
-        b.classList.remove('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
-        b.classList.add('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
-      });
+const interviewCards = document.getElementById('interview-cards');
+const interviewRoleBadge =document.getElementById('interview-results-role-badge');
 
-      btn.classList.remove('bg-white/[0.01]', 'border-white/[0.08]', 'text-gray-400');
-      btn.classList.add('bg-emerald-500/10', 'border-emerald-500/40', 'text-emerald-300');
+const interviewDiffBadge =document.getElementById('interview-results-diff-badge');
 
-      if (btn.id === 'diff-easy') activeDifficulty = 'Easy';
-      else if (btn.id === 'diff-medium') activeDifficulty = 'Medium';
-      else if (btn.id === 'diff-hard') activeDifficulty = 'Hard';
-    });
+
+ async function generateQuestions(role, difficulty) {
+
+  const response = await fetch('/api/interview-questions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      role,
+      difficulty
+    })
   });
 
-  // Comprehensive Question Pool
-  const QUESTIONS_POOL = {
-    "Frontend Developer": {
-      "Easy": [
-        {
-          question: "What is the difference between 'span' and 'div' elements in HTML5?",
-          answer: "A 'div' is a block-level element, which always starts on a new line and takes up the full width available. A 'span' is an inline element, which does not start on a new line and only takes up as much width as necessary."
-        },
-        {
-          question: "Explain the box model in CSS.",
-          answer: "The CSS box model is a container that wraps around HTML elements. It consists of multiple layers: Content (where text and images appear), Padding (clears an area around the content), Border (a border that goes around the padding and content), and Margin (clears an area outside the border)."
-        }
-      ],
-      "Medium": [
-        {
-          question: "What is Event Delegation in JavaScript & why should we use it?",
-          answer: "Event delegation is a design pattern where we attach a single event listener to a parent element rather than attaching multiple event listeners directly to individual children. It works because of Event Bubbling, where events propagate up through ancestors. Benefits include lower memory footprint and automatic handler setups for dynamically added children."
-        },
-        {
-          question: "Explain the virtual DOM model used in frameworks like React.",
-          answer: "The virtual DOM is an in-memory, lightweight representation of the real DOM. When changes occur, the framework generates a new virtual DOM tree, compares it with the previous snapshot (a process called 'diffing'), and applies only the minimum necessary changes to the real DOM (called 'reconciliation'), enhancing rendering speeds."
-        }
-      ],
-      "Hard": [
-        {
-          question: "Detail standard techniques you would employ to reduce First Contentful Paint (FCP) and Time to Interactive (TTI) metrics.",
-          answer: "1. Leverage critical CSS extraction and inline it in the HTML head. 2. Implement strict code-splitting using dynamic imports to send minimal JS bundles. 3. Defer or load non-critical third-party analytics scripts asynchronously. 4. Utilize compressed next-gen image formats (WebP/AVIF) paired with modern source set attributes."
-        },
-        {
-          question: "Explain Web Component encapsulation, shadow DOM limits, and custom element lifecycle scopes.",
-          answer: "Web Components rely on Custom Elements (defining custom HTML tags), Shadow DOM (encapsulated subtree with localized styles), and HTML templates. The lifecycle callbacks are connectedCallback (fired when element enters layout), disconnectedCallback (runs on cleanup), and attributeChangedCallback (monitors custom property updates)."
-        }
-      ]
-    },
-    "Java Developer": {
-      "Easy": [
-        {
-          question: "What is the difference between JDK, JRE, and JVM?",
-          answer: "JVM (Java Virtual Machine) executes compiled bytecode. JRE (Java Runtime Environment) consists of the JVM plus core run runtime library classes. JDK (Java Development Kit) is the full software bundle, containing JRE, compiler, and developer tools like debugger."
-        },
-        {
-          question: "Explain the difference between equals() override and reference verification (==).",
-          answer: "The '==' operator performs physical identity reference comparison (checks if both variables point to the exact same memory address). The equals() method represents logical value equivalence (checks if the contents of two distinct objects are identical, which can be custom-defined)."
-        }
-      ],
-      "Medium": [
-        {
-          question: "Explain the difference between HashMap and ConcurrentHashMap in multi-threaded systems.",
-          answer: "HashMap is not synchronized or thread-safe; simultaneous write actions can corrupt internal linked lists. Hashtable locks the entire map, hurting performance. ConcurrentHashMap optimizes this by locking on granular segments or buckets independently, allowing multiple threads to safely perform concurrent read-write actions."
-        },
-        {
-          question: "What is Garbage Collection (GC) in Java and how do Generational Collectors operate?",
-          answer: "Java Garbage Collection is an automatic process that reclaims heap memory by destroying unreachable objects. Generational collectors group heap spaces into 'Young Generation' ( Eden/Survivor, where short-lived instances live) and 'Old Generation' (for objects surviving multiple clean cycles), reducing garbage collection sweep times."
-        }
-      ],
-      "Hard": [
-        {
-          question: "How do you detect, diagnose, and resolve Thread Deadlocks in a production environments?",
-          answer: "1. Diagnose using tools like 'jstack' or JDK Mission Control to dump stack states. 2. Identify threads waiting on mutual lock combinations (Thread A holds Lock 1 and waits for Lock 2; Thread B holds Lock 2 and waits for Lock 1). 3. Resolve by enforcing rigid global lock acquisition orders or setting reasonable timeouts on resource lock requests."
-        },
-        {
-          question: "Describe JVM Memory Tuning adjustments you would utilize to reduce application pause times.",
-          answer: "Use G1GC or ZGC collectors which perform concurrent phases alongside application threads. Tighten survivor spaces or adjust Young-to-Old ratio (-XX:NewRatio) to prevent short-lived instances from degrading into old heaps, minimizing the frequency of Stop-The-World (STW) pauses."
-        }
-      ]
-    },
-    "Web Developer": {
-      "Easy": [
-        {
-          question: "What is HTTP and how does it differ from HTTPS?",
-          answer: "HTTP is the foundational Hypertext Transfer Protocol used to exchange data. HTTPS is the secure version of HTTP, utilizing Transport Layer Security (TLS/SSL) encryption to secure the communication channel, preventing man-in-the-middle interceptions."
-        },
-        {
-          question: "Briefly explain what cookies, localStorage, and sessionStorage are.",
-          answer: "Cookies are small string pairs sent with every HTTP request, limited to 4KB. LocalStorage persists data indefinitely in the client's browser (up to 5-10MB). SessionStorage acts identically to localStorage, but automatically purges state as soon as the associated browser tab or window is closed."
-        }
-      ],
-      "Medium": [
-        {
-          question: "What is CORS (Cross-Origin Resource Sharing) and how do you resolve CORS errors?",
-          answer: "CORS is a browser security mechanism that restricts web pages from requesting resources from a different domain than the one that served the page. When CORS fails, the backend must return explicit access headers (e.g., 'Access-Control-Allow-Origin: *') specifying which client origins are permitted to load resources."
-        },
-        {
-          question: "Compare REST APIs and GraphQL in production-level layouts.",
-          answer: "REST APIs rely on strict URL endpoint mappings returning standard payload trees, which can lead to over-fetching. GraphQL provides a single dynamic endpoint where clients request customized JSON arrays with exact target properties, dramatically reducing redundant network bandwidth."
-        }
-      ],
-      "Hard": [
-        {
-          question: "Detail standard techniques for securing APIs against common OWASP Top 10 vulnerabilities.",
-          answer: "1. Implement server-side JWT authentication with short lifetimes. 2. Enforce rate-limiting and route throttling to block DDoS attempts. 3. Use parameter bindings and ORMs to prevent SQL Injection inputs. 4. Cleanse and validate all incoming inputs to avoid Cross-Site Scripting (XSS)."
-        },
-        {
-          question: "How do database indices speed up read queries, and what are their trade-offs?",
-          answer: "Database indexes (often implemented as B-Trees or Hash indexes) act as quick lookup tables to avoid slow sequential table scans. Trade-offs include increased physical disc storage overhead and slower write speeds, since the index arrays must be dynamically re-sorted during every INSERT, UPDATE, or DELETE action."
-        }
-      ]
-    }
-  };
+  const data = await response.json();
 
-  if (generateQuestionsBtn) {
-    generateQuestionsBtn.addEventListener('click', () => {
-      const selectedRole = interviewRoleSelect.value;
-      
-      // Toggle views
-      interviewIdleState.classList.add('hidden');
-      interviewResultsContainer.classList.add('hidden');
-      interviewLoader.classList.remove('hidden');
-
-      const loaderMessages = [
-        "Analyzing target framework specs...",
-        "Selecting appropriate tier metrics...",
-        "Generating solution guides..."
-      ];
-
-      let msgIdx = 0;
-      interviewStepText.textContent = loaderMessages[0];
-
-      const stepInterval = setInterval(() => {
-        msgIdx++;
-        if (msgIdx < loaderMessages.length) {
-          interviewStepText.textContent = loaderMessages[msgIdx];
-        } else {
-          clearInterval(stepInterval);
-          renderInterviewQuestions(selectedRole);
-        }
-      }, 400);
-    });
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to generate questions');
   }
 
-  function renderInterviewQuestions(role) {
+  displayQuestions(data);
+
+}
+
+function displayQuestions(data) {
+
+  interviewCards.innerHTML = '';
+
+  interviewRoleBadge.innerHTML = `
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+    ${data.role} Questions
+  `;
+
+  interviewDiffBadge.textContent =
+    data.difficulty.toUpperCase();
+
+  data.questions.forEach((item, index) => {
+
+    const card = document.createElement('div');
+
+    card.className =
+      'glass-panel p-4 rounded-xl border border-white/[0.05]';
+
+    card.innerHTML = `
+      <h4 class="font-bold text-white mb-2">
+        Question ${index + 1}
+      </h4>
+
+      <p class="text-gray-300 mb-3">
+        ${item.question}
+      </p>
+
+      <div class="text-sm text-emerald-300">
+        <strong>Sample Answer:</strong>
+        ${item.answer}
+      </div>
+    `;
+
+    interviewCards.appendChild(card);
+
+  });
+
+}
+  
+
+
+generateQuestionsBtn.addEventListener('click', async () => {
+
+  const role = roleInput.value.trim();
+  const difficulty = difficultySelect.value;
+
+  if (!role) {
+    alert('Please enter a profession');
+    return;
+  }
+
+  interviewIdleState.classList.add('hidden');
+  interviewResultsContainer.classList.add('hidden');
+  interviewLoader.classList.remove('hidden');
+
+  try {
+
+    await generateQuestions(role, difficulty);
+
     interviewLoader.classList.add('hidden');
     interviewResultsContainer.classList.remove('hidden');
-    interviewResultsContainer.classList.add('animate-fadeIn');
 
-    // Select questions
-    const questionsList = QUESTIONS_POOL[role][activeDifficulty];
-    
-    // Update headers
-    interviewResultsRoleBadge.innerHTML = `
-      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-      ${role} Scenarios
-    `;
-    interviewResultsDiffBadge.textContent = activeDifficulty.toUpperCase();
+  } catch (error) {
 
-    // Populate cards
-    interviewCardsContainer.innerHTML = '';
+    interviewLoader.classList.add('hidden');
 
-    questionsList.forEach((item, index) => {
-      const qCard = document.createElement('div');
-      qCard.className = 'glass-panel p-5 rounded-xl border border-white/[0.04] space-y-3 relative hover:bg-white/[0.01]/80 transition duration-200';
-      
-      qCard.innerHTML = `
-        <div class="flex items-start justify-between gap-3">
-          <div class="space-y-1">
-            <span class="font-mono text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Question ${index + 1}</span>
-            <h5 class="text-sm sm:text-base font-bold text-gray-100 leading-snug">${item.question}</h5>
-          </div>
-          <span class="px-2.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
-            activeDifficulty === 'Easy' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
-            activeDifficulty === 'Medium' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-            'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-          }">${activeDifficulty}</span>
-        </div>
+    alert(error.message);
 
-        <div class="pt-2 border-t border-white/[0.05]">
-          <button class="toggle-answer-btn text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1.5 cursor-pointer">
-            <span>Show Expert Solution</span>
-            <svg class="w-3 h-3 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          
-          <div class="answer-content hidden mt-3 p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-xs sm:text-sm text-gray-300 leading-relaxed animate-fadeIn">
-            <p class="font-bold text-emerald-400 mb-1.5">🎯 Expert Answer Key:</p>
-            <p class="italic text-gray-200">${item.answer}</p>
-          </div>
-        </div>
-      `;
+    console.error(error);
 
-      // Handle collapsible solution click
-      const toggleBtn = qCard.querySelector('.toggle-answer-btn');
-      const answerContent = qCard.querySelector('.answer-content');
-      const arrowIcon = qCard.querySelector('.toggle-answer-btn svg');
-
-      toggleBtn.addEventListener('click', () => {
-        const isHidden = answerContent.classList.contains('hidden');
-        if (isHidden) {
-          answerContent.classList.remove('hidden');
-          arrowIcon.classList.add('rotate-180');
-          toggleBtn.querySelector('span').textContent = "Hide Expert Solution";
-        } else {
-          answerContent.classList.add('hidden');
-          arrowIcon.classList.remove('rotate-180');
-          toggleBtn.querySelector('span').textContent = "Show Expert Solution";
-        }
-      });
-
-      interviewCardsContainer.appendChild(qCard);
-    });
   }
 
+});
+
+  
+
+  
   // --- Mock Interview Chatbot Logic ---
   const chatbotPersonaSelect = document.getElementById('chatbot-persona-select');
   const personaDisplayName = document.getElementById('persona-display-name');

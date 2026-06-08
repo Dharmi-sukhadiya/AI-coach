@@ -242,6 +242,70 @@ Return ONLY valid JSON:
   }
 });
 
+app.post('/api/interview-questions', async (req, res) => {
+  try {
+    const { role, difficulty = 'Medium' } = req.body;
+
+    if (!role) {
+      return res.status(400).json({
+        error: 'Role is required'
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const prompt = `
+Generate 10 realistic interview questions.
+
+Role:
+${role}
+
+Difficulty:
+${difficulty}
+
+Rules:
+- Questions must match the profession.
+- Include technical and behavioral questions.
+- Avoid coding questions unless the role is software related.
+
+Return JSON only:
+
+{
+  "questions": [
+    {
+      "question": "",
+      "answer": ""
+    }
+  ]
+}
+`;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.8
+      }
+    });
+
+    const data = JSON.parse(result.text || '{}');
+
+    res.json({
+  role,
+  difficulty,
+  questions: data.questions || []
+});
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Question generation failed'
+    });
+  }
+});
+
 const vite = await createViteServer({
   server: { middlewareMode: true },
   appType: 'spa'
