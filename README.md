@@ -141,7 +141,3 @@ Dharmi Sukhadiya
 
 BSc IT Student | Web Developer | AI Enthusiast
 
-
-## 📜 License
-
-This project is licensed under the MIT License.
